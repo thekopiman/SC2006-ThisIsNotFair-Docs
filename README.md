@@ -26,7 +26,6 @@ class MainClass(SuperClass){
 has been broken down into
 
 ```
-
 function MainClass(props){...}
 function constructor(props){...}
 function methodA(props){...}
