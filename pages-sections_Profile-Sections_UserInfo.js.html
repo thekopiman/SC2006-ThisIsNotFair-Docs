@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: pages-sections/Profile-Sections/UserInfo.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: pages-sections/Profile-Sections/UserInfo.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import React, { useState, useEffect } from "react";
+import { useRouter } from "next/router";
+import classNames from "classnames";
+import { makeStyles } from "@material-ui/core/styles";
+import InputAdornment from "@material-ui/core/InputAdornment";
+import People from "@material-ui/icons/People";
+import Icon from "@material-ui/core/Icon";
+import Button from "/components/CustomButtons/Button.js";
+import Card from "/components/Card/Card.js";
+import CardBody from "/components/Card/CardBody.js";
+import CardFooter from "/components/Card/CardFooter.js";
+import CustomInput from "/components/CustomInput/CustomInput.js";
+import { useAuth } from "../../context/AuthContext";
+import styles from "/styles/jss/nextjs-material-kit/pages/profilePage.js";
+import { FormControl, Select, MenuItem, InputLabel } from "@material-ui/core";
+import { getDatabase, ref, onValue, set } from "firebase/database";
+import {
+  AccountCircle,
+  LocationOn,
+  FitnessCenter,
+  Height,
+  SettingsApplications,
+  Person,
+  Wc,
+} from "@material-ui/icons";
+
+const useStyles = makeStyles(styles);
+const useStyly = makeStyles({
+  card: {
+    marginTop: "10px",
+  },
+  cardBody: {
+    marginTop: "10px",
+  },
+  inputIconsColor: {
+    color: "#9c27b0",
+  },
+  button: {
+    "&amp;:hover": {
+      backgroundColor: "primary",
+    },
+  },
+  formContainer: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    marginTop: "15px",
+  },
+  container: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  data: {
+    textAlign: "center",
+    paddingRight: "5%",
+    flex: "1",
+  },
+  cardFooterEdit: {
+    display: "flex",
+    justifyContent: "space-between",
+  },
+  cardFooterInfo: {
+    display: "flex",
+    justifyContent: "flex-end",
+  },
+});
+
+/**
+ * The `handleSubmit` function handles the form submission when the user updates their information.
+ * It checks if the height and weight are valid numbers and within a certain range. If the values are
+ * not valid, an alert is shown, and the form is reset to the original values. If the values are valid,
+ * the data object is constructed with the new values, and the user's data is updated in the Firebase
+ * Realtime Database. An alert is shown upon successful update, and the edit mode is disabled.
+ * @param event - The form submission event
+ * @returns If the height or weight is not valid, an alert is shown, and the form is reset to the original
+ * values. If the height and weight are valid, the user's data is updated in the Firebase Realtime Database,
+ * and an alert is shown upon successful update. The edit mode is then disabled.
+ */
+export const handleSubmit = (event) => {
+  event.preventDefault();
+
+  // Check if height and weight are valid numbers
+  const isValidHeight =
+    height === "" ||
+    (!isNaN(parseFloat(height)) &amp;&amp;
+      isFinite(height) &amp;&amp;
+      height > 0 &amp;&amp;
+      height &lt;= 300);
+  const isValidWeight =
+    weight === "" ||
+    (!isNaN(parseFloat(weight)) &amp;&amp;
+      isFinite(weight) &amp;&amp;
+      weight > 0 &amp;&amp;
+      weight &lt;= 200);
+
+  // If height or weight is not valid, show an alert and reset to original values
+  if (!isValidHeight || !isValidWeight) {
+    alert("Please enter valid values for height and weight.");
+    setLocation(originalLocation);
+    setAtheleteType(originalAthleteType);
+    setHeight(originalHeight);
+    setWeight(originalWeight);
+    setGender(originalGender);
+    return;
+  }
+
+  // Construct the data object with the new values
+  const newData = {
+    gender,
+    location,
+    athleteType,
+    height,
+    weight,
+  };
+
+  // Get a reference to the Firebase Realtime Database
+  const db = getDatabase();
+  // Construct the path to the user's data in the database
+  const userRef = ref(db, `users/${currentUser.uid}`);
+
+  // Update user's data in the database
+  set(userRef, newData)
+    .then(() => {
+      alert("Data updated successfully!");
+      setIsEditMode(false); // Disable edit mode after submission
+    })
+    .catch((error) => {
+      alert("Error updating data: ", error);
+      // Handle error
+    });
+};
+
+/**
+ * The `handleEdit` function enables the edit mode when the user clicks the "Edit" button.
+ * The user can then edit their information.
+ */
+export const handleEdit = () => {
+  setIsEditMode(true);
+};
+
+/**
+ * The `handleCancel` function cancels the changes made by the user and resets the form to the original
+ * values.
+ */
+export const handleCancel = () => {
+  setIsEditMode(false);
+  // Reset to original values
+  setLocation(originalLocation);
+  setAtheleteType(originalAthleteType);
+  setHeight(originalHeight);
+  setWeight(originalWeight);
+  setGender(originalGender);
+};
+
+/**
+ * The `UserInfo` function in JavaScript handles user information display and edit functionality
+ * with validation and error handling.
+ * @returns The `UserInfo` component is returning a Card component containing user information such as
+ * location, athlete type, height, and weight. If the user has not entered their information, the fields
+ * will be empty. If the user has entered their information, the fields will be displayed. The user can
+ * edit their information by clicking the "Edit" button. The user can then save or cancel the changes.
+ * If the user saves the changes, the data is updated in the Firebase Realtime Database.
+ * If the user cancels the changes, the form is reset to the original values.
+ * If the user has not entered valid values for height and weight, an alert is shown.
+ * If the user has entered valid values, the data is updated in the Firebase Realtime Database.
+ * An alert is shown upon successful update, and the edit mode is disabled.
+ * The user can also cancel the changes, and the form is reset to the original values.
+ */
+
+export function UserInfo() {
+  const classes = useStyles();
+  const classess = useStyly();
+  const { currentUser } = useAuth();
+  const router = useRouter();
+  const [location, setLocation] = useState("");
+  const [originalLocation, setOriginalLocation] = useState("");
+  const [athleteType, setAtheleteType] = useState("");
+  const [originalAthleteType, setOriginalAthleteType] = useState("");
+  const [height, setHeight] = useState("");
+  const [originalHeight, setOriginalHeight] = useState("");
+  const [weight, setWeight] = useState("");
+  const [originalWeight, setOriginalWeight] = useState("");
+  const [gender, setGender] = useState("");
+  const [originalGender, setOriginalGender] = useState("");
+  const [isEditMode, setIsEditMode] = useState(false);
+
+  // Fetch user data from Firebase when component mounts
+  useEffect(() => {
+    if (currentUser) {
+      // Get a reference to the Firebase Realtime Database
+      const db = getDatabase();
+      // Construct the path to the user's data in the database
+      const userRef = ref(db, `users/${currentUser.uid}`);
+      // Fetch user's data from the database
+      onValue(userRef, (snapshot) => {
+        const userData = snapshot.val(); // Retrieve the user's data
+        if (userData) {
+          // If user data exists, update the state with the name
+          setGender(userData.gender);
+          setOriginalGender(userData.gender);
+          setLocation(userData.location);
+          setOriginalLocation(userData.location);
+          setAtheleteType(userData.athleteType);
+          setOriginalAthleteType(userData.athleteType);
+          setHeight(userData.height);
+          setOriginalHeight(userData.height);
+          setWeight(userData.weight);
+          setOriginalWeight(userData.weight);
+        }
+      });
+    }
+  }, [currentUser]);
+
+  return (
+    &lt;Card className={classess.card}>
+      &lt;form className={classes.form} onSubmit={handleSubmit}>
+        {!isEditMode ? (
+          &lt;div>
+            {/* display mode */}
+            &lt;CardBody className={classess.cardBody}>
+              &lt;div className={classess.container}>
+                &lt;h5>Biological Gender: &lt;/h5>
+                &lt;h5 className={gender === "" ? classess.data : ""}>
+                  {gender === "" ? "" : gender}
+                &lt;/h5>
+              &lt;/div>
+              &lt;div className={classess.container}>
+                &lt;h5>Location: &lt;/h5>
+                &lt;h5 className={location === "" ? classess.data : ""}>
+                  {location === "" ? "" : location}
+                &lt;/h5>
+              &lt;/div>
+              &lt;div className={classess.container}>
+                &lt;h5>Athelete Type: &lt;/h5>
+                &lt;h5 className={athleteType === "" ? classess.data : ""}>
+                  {athleteType === "" ? "" : athleteType}
+                &lt;/h5>
+              &lt;/div>
+              &lt;div className={classess.container}>
+                &lt;h5>Height (cm): &lt;/h5>
+                &lt;h5 className={height === "" ? classess.data : ""}>
+                  {height === "" ? "" : height}
+                &lt;/h5>
+              &lt;/div>
+              &lt;div className={classess.container}>
+                &lt;h5>Weight (kg): &lt;/h5>
+                &lt;h5 className={weight === "" ? classess.data : ""}>
+                  {weight === "" ? "" : weight}
+                &lt;/h5>
+              &lt;/div>
+            &lt;/CardBody>
+            &lt;div className={classes.cardFooterInfo}>
+              &lt;Button simple color="primary" size="lg" onClick={handleEdit}>
+                Edit
+              &lt;/Button>
+            &lt;/div>
+          &lt;/div>
+        ) : (
+          &lt;div>
+            {/* edit mode */}
+            &lt;CardBody>
+              &lt;div>
+                &lt;FormControl fullWidth>
+                  &lt;InputLabel id="gender-label">Biological Gender&lt;/InputLabel>
+                  &lt;Select
+                    labelId="gender-label"
+                    id="gender"
+                    value={gender}
+                    onChange={(e) => setGender(e.target.value)}
+                    endAdornment={
+                      &lt;InputAdornment position="end">
+                        &lt;Wc className={classes.inputIconsColor} />
+                      &lt;/InputAdornment>
+                    }
+                  >
+                    &lt;MenuItem value={"Male"}>Male&lt;/MenuItem>
+                    &lt;MenuItem value={"Female"}>Female&lt;/MenuItem>
+                    &lt;MenuItem value={"Non-binary"}>Non-binary&lt;/MenuItem>
+                  &lt;/Select>
+                &lt;/FormControl>
+              &lt;/div>
+
+              &lt;div>
+                {/* &lt;CustomInput
+                  labelText="Athelete Type"
+                  id="athleteType"
+                  formControlProps={{
+                    fullWidth: true,
+                  }}
+                  inputProps={{
+                    type: "text",
+                    value: athleteType,
+                    onChange: (e) => setAtheleteType(e.target.value),
+                    endAdornment: (
+                      &lt;InputAdornment position="end">
+                        &lt;FitnessCenter className={classes.inputIconsColor} />
+                      &lt;/InputAdornment>
+                    ),
+                  }}
+                /> */}
+                &lt;FormControl fullWidth>
+                  &lt;InputLabel id="athelete-type-label">
+                    Athelete Type
+                  &lt;/InputLabel>
+                  &lt;Select
+                    labelId="athelete-type-label"
+                    id="gender"
+                    value={athleteType}
+                    onChange={(e) => setAtheleteType(e.target.value)}
+                    endAdornment={
+                      &lt;InputAdornment position="end">
+                        &lt;FitnessCenter className={classes.inputIconsColor} />
+                      &lt;/InputAdornment>
+                    }
+                  >
+                    &lt;MenuItem value={"Runner"}>Runner&lt;/MenuItem>
+                    &lt;MenuItem value={"Cyclist"}>Cyclist&lt;/MenuItem>
+                  &lt;/Select>
+                &lt;/FormControl>
+              &lt;/div>
+              &lt;div>
+                &lt;CustomInput
+                  labelText="Location"
+                  id="location"
+                  formControlProps={{
+                    fullWidth: true,
+                  }}
+                  inputProps={{
+                    type: "text",
+                    value: location,
+                    onChange: (e) => setLocation(e.target.value),
+                    endAdornment: (
+                      &lt;InputAdornment position="end">
+                        &lt;LocationOn className={classes.inputIconsColor} />
+                      &lt;/InputAdornment>
+                    ),
+                  }}
+                />
+              &lt;/div>
+              &lt;div>
+                &lt;CustomInput
+                  labelText="Height (cm)"
+                  id="height"
+                  formControlProps={{
+                    fullWidth: true,
+                  }}
+                  inputProps={{
+                    type: "text",
+                    value: height,
+                    onChange: (e) => setHeight(e.target.value),
+                    endAdornment: (
+                      &lt;InputAdornment position="end">
+                        &lt;Height className={classes.inputIconsColor} />
+                      &lt;/InputAdornment>
+                    ),
+                  }}
+                />
+              &lt;/div>
+              &lt;div>
+                &lt;CustomInput
+                  labelText="Weight (kg)"
+                  id="weight"
+                  formControlProps={{
+                    fullWidth: true,
+                  }}
+                  inputProps={{
+                    type: "text",
+                    value: weight,
+                    onChange: (e) => setWeight(e.target.value),
+                    endAdornment: (
+                      &lt;InputAdornment position="end">
+                        &lt;Person className={classes.inputIconsColor} />
+                      &lt;/InputAdornment>
+                    ),
+                  }}
+                />
+              &lt;/div>
+            &lt;/CardBody>
+            &lt;div className={classes.cardFooterEdit}>
+              &lt;Button simple color="primary" size="lg" onClick={handleCancel}>
+                Cancel
+              &lt;/Button>
+              &lt;Button simple color="primary" size="lg" onClick={handleSubmit}>
+                Save
+              &lt;/Button>
+            &lt;/div>
+          &lt;/div>
+        )}
+      &lt;/form>
+    &lt;/Card>
+  );
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html"></a></li><li><a href="global.html#AccountInfo">AccountInfo</a></li><li><a href="global.html#BMI">BMI</a></li><li><a href="global.html#CameraContent">CameraContent</a></li><li><a href="global.html#CameraInput">CameraInput</a></li><li><a href="global.html#CreateAccountPage">CreateAccountPage</a></li><li><a href="global.html#DisplayMapPage">DisplayMapPage</a></li><li><a href="global.html#ErrorPage">ErrorPage</a></li><li><a href="global.html#FeedbackMap">FeedbackMap</a></li><li><a href="global.html#FoodHealthPage">FoodHealthPage</a></li><li><a href="global.html#FoodInfo">FoodInfo</a></li><li><a href="global.html#FoodSug">FoodSug</a></li><li><a href="global.html#FoodSugCard">FoodSugCard</a></li><li><a href="global.html#GPXdownload">GPXdownload</a></li><li><a href="global.html#LandingPage">LandingPage</a></li><li><a href="global.html#LocalStorageInput">LocalStorageInput</a></li><li><a href="global.html#LoginPage">LoginPage</a></li><li><a href="global.html#MainMenuPage">MainMenuPage</a></li><li><a href="global.html#ManageSuggestionsPage">ManageSuggestionsPage</a></li><li><a href="global.html#ManualContentPill">ManualContentPill</a></li><li><a href="global.html#Map">Map</a></li><li><a href="global.html#NewFeedbackPage">NewFeedbackPage</a></li><li><a href="global.html#POIMarkers">POIMarkers</a></li><li><a href="global.html#PasswordRecoveryPage">PasswordRecoveryPage</a></li><li><a href="global.html#ProductSection">ProductSection</a></li><li><a href="global.html#ProfilePage">ProfilePage</a></li><li><a href="global.html#RouteCard">RouteCard</a></li><li><a href="global.html#RoutePlannerPage">RoutePlannerPage</a></li><li><a href="global.html#SavedRoutesTab">SavedRoutesTab</a></li><li><a href="global.html#ToggleMap">ToggleMap</a></li><li><a href="global.html#ToiletSug">ToiletSug</a></li><li><a href="global.html#ToiletSugCard">ToiletSugCard</a></li><li><a href="global.html#TravelModeSelection">TravelModeSelection</a></li><li><a href="global.html#UserInfo">UserInfo</a></li><li><a href="global.html#VerificationPage">VerificationPage</a></li><li><a href="global.html#WaterSugCard">WaterSugCard</a></li><li><a href="global.html#WaypointCard">WaypointCard</a></li><li><a href="global.html#acceptPOI">acceptPOI</a></li><li><a href="global.html#addNewPOI">addNewPOI</a></li><li><a href="global.html#browseLocalStorage">browseLocalStorage</a></li><li><a href="global.html#cachedFoods">cachedFoods</a></li><li><a href="global.html#calculateBMI">calculateBMI</a></li><li><a href="global.html#classes">classes</a></li><li><a href="global.html#database">database</a></li><li><a href="global.html#debouncedSearchFunction">debouncedSearchFunction</a></li><li><a href="global.html#deleteSavedRoutes">deleteSavedRoutes</a></li><li><a href="global.html#deleteUserRouteHandler">deleteUserRouteHandler</a></li><li><a href="global.html#deleteWaypointHandler">deleteWaypointHandler</a></li><li><a href="global.html#directionMatrixCallback">directionMatrixCallback</a></li><li><a href="global.html#directionsCallback">directionsCallback</a></li><li><a href="global.html#extractClickedLocation">extractClickedLocation</a></li><li><a href="global.html#fetchFoodInfo">fetchFoodInfo</a></li><li><a href="global.html#fetchFoods">fetchFoods</a></li><li><a href="global.html#fetchPoints">fetchPoints</a></li><li><a href="global.html#generateCode">generateCode</a></li><li><a href="global.html#getAdvice">getAdvice</a></li><li><a href="global.html#getAllFoodPoints">getAllFoodPoints</a></li><li><a href="global.html#getAllToilets">getAllToilets</a></li><li><a href="global.html#getAllWaterpoints">getAllWaterpoints</a></li><li><a href="global.html#getFoodPoints">getFoodPoints</a></li><li><a href="global.html#getHealthStatus">getHealthStatus</a></li><li><a href="global.html#getPlaceDisplayName">getPlaceDisplayName</a></li><li><a href="global.html#getSavedRoutes">getSavedRoutes</a></li><li><a href="global.html#getSavedRoutesWithKeys">getSavedRoutesWithKeys</a></li><li><a href="global.html#getToilets">getToilets</a></li><li><a href="global.html#getUserRoutes">getUserRoutes</a></li><li><a href="global.html#getUserRoutesKeys">getUserRoutesKeys</a></li><li><a href="global.html#getWaterPoint">getWaterPoint</a></li><li><a href="global.html#handleApprove">handleApprove</a></li><li><a href="global.html#handleBackButtonClick">handleBackButtonClick</a></li><li><a href="global.html#handleBrowseClick">handleBrowseClick</a></li><li><a href="global.html#handleCancel">handleCancel</a></li><li><a href="global.html#handleCodeChanges">handleCodeChanges</a></li><li><a href="global.html#handleConfirmPasswordChange">handleConfirmPasswordChange</a></li><li><a href="global.html#handleDiscardClick">handleDiscardClick</a></li><li><a href="global.html#handleEdit">handleEdit</a></li><li><a href="global.html#handleEmailChange">handleEmailChange</a></li><li><a href="global.html#handleFacebookLogin">handleFacebookLogin</a></li><li><a href="global.html#handleFoodSearch">handleFoodSearch</a></li><li><a href="global.html#handleGetLocationClick">handleGetLocationClick</a></li><li><a href="global.html#handleGithubLogin">handleGithubLogin</a></li><li><a href="global.html#handleGoogleLogin">handleGoogleLogin</a></li><li><a href="global.html#handleMiddlePoints">handleMiddlePoints</a></li><li><a href="global.html#handleNewPasswordChange">handleNewPasswordChange</a></li><li><a href="global.html#handlePasswordChange">handlePasswordChange</a></li><li><a href="global.html#handlePlaceChanged">handlePlaceChanged</a></li><li><a href="global.html#handleProfilePicChange">handleProfilePicChange</a></li><li><a href="global.html#handleReconfirmPasswordChange">handleReconfirmPasswordChange</a></li><li><a href="global.html#handleReject">handleReject</a></li><li><a href="global.html#handleRouteNameChange">handleRouteNameChange</a></li><li><a href="global.html#handleSubmit">handleSubmit</a></li><li><a href="global.html#handleToggleChange">handleToggleChange</a></li><li><a href="global.html#handleToggleForm">handleToggleForm</a></li><li><a href="global.html#handleUsernameChange">handleUsernameChange</a></li><li><a href="global.html#httpGet">httpGet</a></li><li><a href="global.html#rejectPOI">rejectPOI</a></li><li><a href="global.html#renderIcon">renderIcon</a></li><li><a href="global.html#restaurantLink">restaurantLink</a></li><li><a href="global.html#router">router</a></li><li><a href="global.html#swapWappointHandler">swapWappointHandler</a></li><li><a href="global.html#toiletLink">toiletLink</a></li><li><a href="global.html#uploadImageAndGetPrediction">uploadImageAndGetPrediction</a></li><li><a href="global.html#uploadSavedRoutes">uploadSavedRoutes</a></li><li><a href="global.html#validateCredentials">validateCredentials</a></li><li><a href="global.html#validatePassword">validatePassword</a></li><li><a href="global.html#waterpointLink">waterpointLink</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.2</a> on Tue Apr 16 2024 15:37:24 GMT+0800 (Singapore Standard Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

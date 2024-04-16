@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: pages/routeplanner.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: pages/routeplanner.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import React, { useEffect, useState } from "react";
+// nodejs library that concatenates classes
+import classNames from "classnames";
+// @material-ui/core components
+import { makeStyles } from "@material-ui/core/styles";
+
+// @material-ui/icons
+
+// core components
+import Header from "/components/Header/Header.js";
+import GridContainer from "/components/Grid/GridContainer.js";
+import GridItem from "/components/Grid/GridItem.js";
+import HeaderLinks from "/components/Header/HeaderLinks.js";
+import Parallax from "/components/Parallax/Parallax.js";
+import Router from "next/router";
+import { useAuth } from "../context/AuthContext";
+import Scroll from "react-scroll";
+import Card from "/components/Card/Card.js";
+import CardBody from "/components/Card/CardBody.js";
+import CardMedia from "@material-ui/core/CardMedia";
+import CardFooter from "../components/Card/CardFooter.js";
+import Link from "next/link";
+
+var Element = Scroll.Element;
+
+// Sections
+
+import styles from "/styles/jss/nextjs-material-kit/pages/components.js";
+import {
+  getSavedRoutes,
+  getSavedRoutesWithKeys,
+  deleteSavedRoutes,
+} from "../data/savedroutes";
+
+import RouteCard from "../pages-sections/Routeplanner-Sections/RouteCard";
+
+const useStyles = makeStyles(styles);
+
+/**
+ * The function `getUserRoutes` asynchronously retrieves saved routes for the current user.
+ * @returns The `getUserRoutes` function is returning the result of the
+ * `getSavedRoutes(currentUser.uid)` function after awaiting its completion.
+ */
+export async function getUserRoutes() {
+  var RouteFull = await getSavedRoutes(currentUser.uid);
+  return RouteFull;
+}
+
+/**
+ * The `RoutePlannerPage` function is a React component that handles route planning and display for
+ * authenticated users, including retrieving saved routes, deleting routes, and rendering route cards.
+ * @param props - The `RoutePlannerPage` component you provided is a functional component that serves
+ * as the main page for a route planning application. It includes authentication checks, fetching
+ * user-specific route data, and rendering route planning and viewing functionalities.
+ * @returns The `RoutePlannerPage` component is being exported as the default export. It is a
+ * functional component that renders a page for route planning. The component includes authentication
+ * checks, retrieval of user routes, deletion of routes, and rendering of route cards. The component
+ * returns JSX elements that make up the layout of the route planner page, including a header, parallax
+ * image, route planning options, and a
+ */
+export function RoutePlannerPage(props) {
+  const { currentUser } = useAuth();
+  const classes = useStyles();
+  const { ...rest } = props;
+  const [loading, setLoading] = useState(true);
+  const [retrievedOnce, setRetrievedOnce] = useState(false);
+  const [allRoute, setAllRoute] = useState([]);
+  const [allRouteKeys, setAllRouteKeys] = useState([]);
+
+  // Redirect if not logged in
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        if (currentUser === undefined) {
+          // User not logged in, redirect to login page
+          Router.push("/login");
+        } else {
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error("Error checking authentication:", error);
+        setLoading(false);
+      }
+    };
+
+    checkAuth();
+  }, [currentUser, Router]);
+
+  // Render nothing if not authenticated or still loading
+  if (currentUser === null || loading) {
+    console.log("Loading");
+    return &lt;div>&lt;/div>; // You can also render a loading spinner or message here
+  }
+
+  if (!retrievedOnce) {
+    setRetrievedOnce(true);
+    getUserRoutes().then((array) => {
+      console.log(array);
+      setAllRoute(array ? array : []);
+    });
+    getUserRoutesKeys().then((array) => {
+      console.log(array);
+      setAllRouteKeys(array ? array : []);
+    });
+  }
+  return (
+    &lt;div>
+      &lt;Header
+        brand="ThisIsNotFair"
+        rightLinks={&lt;HeaderLinks />}
+        fixed
+        brandlink="/mainmenu"
+        color="transparent"
+        changeColorOnScroll={{
+          height: 400,
+          color: "white",
+        }}
+        {...rest}
+      />
+      &lt;Parallax image="/img/bg7.jpg">
+        &lt;div className={classes.container}>
+          &lt;GridContainer>
+            &lt;GridItem>
+              &lt;div className={classes.brand}>
+                &lt;h1 className={classes.title}>Route Planner&lt;/h1>
+                &lt;h3 className={classes.subtitle}>
+                  Map Router and trusty helper
+                &lt;/h3>
+              &lt;/div>
+            &lt;/GridItem>
+          &lt;/GridContainer>
+        &lt;/div>
+      &lt;/Parallax>
+      &lt;div className={classNames(classes.main, classes.mainRaisededitted)}>
+        &lt;GridContainer>
+          &lt;GridItem xs={4}>
+            &lt;Link href="/routeplanner/displaymap">
+              &lt;a>
+                &lt;Card>
+                  &lt;CardMedia
+                    component="img"
+                    alt="Image cannot be loaded"
+                    height="250"
+                    image="/img/mappic.jpg"
+                    title="Picture of a map"
+                  />
+                  &lt;CardBody>
+                    &lt;h4
+                      className={classes.cardTitle}
+                      style={{ fontWeight: "bold" }}
+                    >
+                      Route Planning
+                    &lt;/h4>
+                    &lt;p>Create new routes here!&lt;/p>
+                  &lt;/CardBody>
+                  &lt;CardFooter>&lt;/CardFooter>
+                &lt;/Card>
+              &lt;/a>
+            &lt;/Link>
+          &lt;/GridItem>
+          &lt;GridItem xs={8}>
+            &lt;Card>
+              &lt;CardBody>
+                &lt;h4
+                  className={classes.cardTitle}
+                  style={{ fontWeight: "bold" }}
+                >
+                  View all your routes here!
+                &lt;/h4>
+                &lt;Element
+                  name="test7"
+                  className="element"
+                  id="containerElement"
+                  style={{
+                    position: "relative",
+                    height: "600px",
+                    overflow: "scroll",
+                    // marginBottom: "100px",
+                  }}
+                >
+                  {allRoute.length > 0 &amp;&amp;
+                    allRoute.map((route, index) => {
+                      return (
+                        &lt;RouteCard
+                          name={route.name}
+                          distance={route.totalPathDistance}
+                          duration={route.totalPathDuration}
+                          index={index}
+                          deleteHandler={deleteUserRouteHandler}
+                        />
+                      );
+                    })}
+                &lt;/Element>
+              &lt;/CardBody>
+            &lt;/Card>
+          &lt;/GridItem>
+        &lt;/GridContainer>
+      &lt;/div>
+    &lt;/div>
+  );
+}
+
+/**
+ * The function `getUserRoutesKeys` asynchronously retrieves saved routes with keys for the current
+ * user.
+ * @returns The function `getUserRoutesKeys` is returning the result of the
+ * `getSavedRoutesWithKeys(currentUser.uid)` function after awaiting its completion.
+ */
+export async function getUserRoutesKeys() {
+  var RouteFull = await getSavedRoutesWithKeys(currentUser.uid);
+  return RouteFull;
+}
+
+/**
+ * The `deleteUserRouteHandler` function deletes a saved route at a specific index and updates the
+ * state accordingly.
+ * @param index - The `index` parameter in the `deleteUserRouteHandler` function represents the
+ * position of the route to be deleted in the `allRoute` and `allRouteKeys` arrays.
+ */
+export const deleteUserRouteHandler = (index) => {
+  deleteSavedRoutes(currentUser.uid, allRouteKeys[index]);
+
+  if (index > 0) {
+    allRoute.splice(index, index);
+    allRouteKeys.splice(index, index);
+  } else {
+    allRoute.shift();
+    allRouteKeys.shift();
+  }
+  setAllRoute((allRoute) => [...allRoute]);
+  setAllRouteKeys((allRouteKeys) => [...allRouteKeys]);
+};
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html"></a></li><li><a href="global.html#AccountInfo">AccountInfo</a></li><li><a href="global.html#BMI">BMI</a></li><li><a href="global.html#CameraContent">CameraContent</a></li><li><a href="global.html#CameraInput">CameraInput</a></li><li><a href="global.html#CreateAccountPage">CreateAccountPage</a></li><li><a href="global.html#DisplayMapPage">DisplayMapPage</a></li><li><a href="global.html#ErrorPage">ErrorPage</a></li><li><a href="global.html#FeedbackMap">FeedbackMap</a></li><li><a href="global.html#FoodHealthPage">FoodHealthPage</a></li><li><a href="global.html#FoodInfo">FoodInfo</a></li><li><a href="global.html#FoodSug">FoodSug</a></li><li><a href="global.html#FoodSugCard">FoodSugCard</a></li><li><a href="global.html#GPXdownload">GPXdownload</a></li><li><a href="global.html#LandingPage">LandingPage</a></li><li><a href="global.html#LocalStorageInput">LocalStorageInput</a></li><li><a href="global.html#LoginPage">LoginPage</a></li><li><a href="global.html#MainMenuPage">MainMenuPage</a></li><li><a href="global.html#ManageSuggestionsPage">ManageSuggestionsPage</a></li><li><a href="global.html#ManualContentPill">ManualContentPill</a></li><li><a href="global.html#Map">Map</a></li><li><a href="global.html#NewFeedbackPage">NewFeedbackPage</a></li><li><a href="global.html#POIMarkers">POIMarkers</a></li><li><a href="global.html#PasswordRecoveryPage">PasswordRecoveryPage</a></li><li><a href="global.html#ProductSection">ProductSection</a></li><li><a href="global.html#ProfilePage">ProfilePage</a></li><li><a href="global.html#RouteCard">RouteCard</a></li><li><a href="global.html#RoutePlannerPage">RoutePlannerPage</a></li><li><a href="global.html#SavedRoutesTab">SavedRoutesTab</a></li><li><a href="global.html#ToggleMap">ToggleMap</a></li><li><a href="global.html#ToiletSug">ToiletSug</a></li><li><a href="global.html#ToiletSugCard">ToiletSugCard</a></li><li><a href="global.html#TravelModeSelection">TravelModeSelection</a></li><li><a href="global.html#UserInfo">UserInfo</a></li><li><a href="global.html#VerificationPage">VerificationPage</a></li><li><a href="global.html#WaterSugCard">WaterSugCard</a></li><li><a href="global.html#WaypointCard">WaypointCard</a></li><li><a href="global.html#acceptPOI">acceptPOI</a></li><li><a href="global.html#addNewPOI">addNewPOI</a></li><li><a href="global.html#browseLocalStorage">browseLocalStorage</a></li><li><a href="global.html#cachedFoods">cachedFoods</a></li><li><a href="global.html#calculateBMI">calculateBMI</a></li><li><a href="global.html#classes">classes</a></li><li><a href="global.html#database">database</a></li><li><a href="global.html#debouncedSearchFunction">debouncedSearchFunction</a></li><li><a href="global.html#deleteSavedRoutes">deleteSavedRoutes</a></li><li><a href="global.html#deleteUserRouteHandler">deleteUserRouteHandler</a></li><li><a href="global.html#deleteWaypointHandler">deleteWaypointHandler</a></li><li><a href="global.html#directionMatrixCallback">directionMatrixCallback</a></li><li><a href="global.html#directionsCallback">directionsCallback</a></li><li><a href="global.html#extractClickedLocation">extractClickedLocation</a></li><li><a href="global.html#fetchFoodInfo">fetchFoodInfo</a></li><li><a href="global.html#fetchFoods">fetchFoods</a></li><li><a href="global.html#fetchPoints">fetchPoints</a></li><li><a href="global.html#generateCode">generateCode</a></li><li><a href="global.html#getAdvice">getAdvice</a></li><li><a href="global.html#getAllFoodPoints">getAllFoodPoints</a></li><li><a href="global.html#getAllToilets">getAllToilets</a></li><li><a href="global.html#getAllWaterpoints">getAllWaterpoints</a></li><li><a href="global.html#getFoodPoints">getFoodPoints</a></li><li><a href="global.html#getHealthStatus">getHealthStatus</a></li><li><a href="global.html#getPlaceDisplayName">getPlaceDisplayName</a></li><li><a href="global.html#getSavedRoutes">getSavedRoutes</a></li><li><a href="global.html#getSavedRoutesWithKeys">getSavedRoutesWithKeys</a></li><li><a href="global.html#getToilets">getToilets</a></li><li><a href="global.html#getUserRoutes">getUserRoutes</a></li><li><a href="global.html#getUserRoutesKeys">getUserRoutesKeys</a></li><li><a href="global.html#getWaterPoint">getWaterPoint</a></li><li><a href="global.html#handleApprove">handleApprove</a></li><li><a href="global.html#handleBackButtonClick">handleBackButtonClick</a></li><li><a href="global.html#handleBrowseClick">handleBrowseClick</a></li><li><a href="global.html#handleCancel">handleCancel</a></li><li><a href="global.html#handleCodeChanges">handleCodeChanges</a></li><li><a href="global.html#handleConfirmPasswordChange">handleConfirmPasswordChange</a></li><li><a href="global.html#handleDiscardClick">handleDiscardClick</a></li><li><a href="global.html#handleEdit">handleEdit</a></li><li><a href="global.html#handleEmailChange">handleEmailChange</a></li><li><a href="global.html#handleFacebookLogin">handleFacebookLogin</a></li><li><a href="global.html#handleFoodSearch">handleFoodSearch</a></li><li><a href="global.html#handleGetLocationClick">handleGetLocationClick</a></li><li><a href="global.html#handleGithubLogin">handleGithubLogin</a></li><li><a href="global.html#handleGoogleLogin">handleGoogleLogin</a></li><li><a href="global.html#handleMiddlePoints">handleMiddlePoints</a></li><li><a href="global.html#handleNewPasswordChange">handleNewPasswordChange</a></li><li><a href="global.html#handlePasswordChange">handlePasswordChange</a></li><li><a href="global.html#handlePlaceChanged">handlePlaceChanged</a></li><li><a href="global.html#handleProfilePicChange">handleProfilePicChange</a></li><li><a href="global.html#handleReconfirmPasswordChange">handleReconfirmPasswordChange</a></li><li><a href="global.html#handleReject">handleReject</a></li><li><a href="global.html#handleRouteNameChange">handleRouteNameChange</a></li><li><a href="global.html#handleSubmit">handleSubmit</a></li><li><a href="global.html#handleToggleChange">handleToggleChange</a></li><li><a href="global.html#handleToggleForm">handleToggleForm</a></li><li><a href="global.html#handleUsernameChange">handleUsernameChange</a></li><li><a href="global.html#httpGet">httpGet</a></li><li><a href="global.html#rejectPOI">rejectPOI</a></li><li><a href="global.html#renderIcon">renderIcon</a></li><li><a href="global.html#restaurantLink">restaurantLink</a></li><li><a href="global.html#router">router</a></li><li><a href="global.html#swapWappointHandler">swapWappointHandler</a></li><li><a href="global.html#toiletLink">toiletLink</a></li><li><a href="global.html#uploadImageAndGetPrediction">uploadImageAndGetPrediction</a></li><li><a href="global.html#uploadSavedRoutes">uploadSavedRoutes</a></li><li><a href="global.html#validateCredentials">validateCredentials</a></li><li><a href="global.html#validatePassword">validatePassword</a></li><li><a href="global.html#waterpointLink">waterpointLink</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.2</a> on Tue Apr 16 2024 15:37:24 GMT+0800 (Singapore Standard Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

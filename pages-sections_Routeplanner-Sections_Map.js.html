@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: pages-sections/Routeplanner-Sections/Map.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: pages-sections/Routeplanner-Sections/Map.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import { useState, useRef, useEffect } from "react";
+
+// Icons
+import DirectionsBikeIcon from "@material-ui/icons/DirectionsBike";
+import DirectionsRunIcon from "@material-ui/icons/DirectionsRun"; // Not really necessary, but oh wells
+import WcIcon from "@material-ui/icons/Wc";
+import MyLocationIcon from "@material-ui/icons/MyLocation";
+import AddLocationIcon from "@material-ui/icons/AddLocation";
+import SettingsIcon from "@material-ui/icons/Settings";
+import BookmarkIcon from "@material-ui/icons/Bookmark";
+
+// Core Components
+import CustomInput from "/components/CustomInput/CustomInput.js";
+import InputAdornment from "@material-ui/core/InputAdornment";
+import GridContainer from "/components/Grid/GridContainer.js";
+import GridItem from "/components/Grid/GridItem.js";
+import Scroll from "react-scroll";
+import IconButton from "@material-ui/core/IconButton";
+import CustomTabs from "/components/CustomTabs/CustomTabs.js";
+import Badge from "/components/Badge/Badge.js";
+
+var Element = Scroll.Element;
+
+// Styling
+import SearchIcon from "@material-ui/icons/Search";
+import { makeStyles } from "@material-ui/core/styles";
+import styles from "/styles/jss/nextjs-material-kit/pages/components.js";
+import Success from "/components/Typography/Success.js";
+import TravelModeSelection from "./TravelModeSelection";
+
+// Get Request
+import httpGet from "/data/getRequest";
+import { getAllToilets, toiletLink } from "/data/retrievetoilets";
+import { getAllWaterpoints, waterpointLink } from "/data/retrievewaterpoints";
+import { getAllFoodPoints, restaurantLink } from "/data/retrievefoodpoints";
+
+// Destination Cards
+import WaypointCard from "./WaypointCard";
+
+// Google Maps API
+import {
+  GoogleMap,
+  useLoadScript,
+  Marker,
+  Autocomplete,
+  DirectionsService,
+  DirectionsRenderer,
+  DistanceMatrixService,
+} from "@react-google-maps/api";
+import { REACT_APP_GOOGLE_MAPS_API_KEY } from "../../env";
+// import { Button, Grid } from "@material-ui/core";
+import Button from "/components/CustomButtons/Button.js";
+import classNames from "classnames";
+
+// Toggles
+import ToggleMap from "./ToggleMap";
+import POIMarkers from "./MarkerToggle";
+import SavedRoutesTab from "./SavedRoutesTab";
+
+const useStyles = makeStyles(styles);
+
+/**
+ * The `Map` function handles mapping functionalities including waypoints, search,
+ * current location, markers for toilets, food points, and water points, as well as displaying routes
+ * and settings.
+ * @param props - The `Map` component you provided is a functional component that takes `props` as a
+ * parameter. The `props` object contains various properties that can be passed to the `Map` component
+ * when it is used in a parent component. These properties can be accessed within the `Map` component
+ * using object
+ * @returns The `Map` component is being returned, which consists of various functionalities related to
+ * mapping, including search functionality, route planning, saved routes, settings toggles for
+ * different points of interest (toilets, food points, water points), and the actual map display with
+ * markers and directions based on selected waypoints. The component also includes handlers for adding,
+ * deleting, and swapping waypoints, as well as functions to
+ */
+export function Map(props) {
+  const { userID = null } = props;
+  // Use States
+  const [selectedPlace, setSelectedPlace] = useState(null);
+  const [searchLngLat, setSearchLngLat] = useState(null);
+  const [currentLocation, setCurrentLocation] = useState(null);
+  const [clickedLocation, setClickLocation] = useState(null);
+  const [travelMode, setTravelMode] = useState({
+    mode: "BICYCLING",
+    icon: DirectionsBikeIcon,
+  });
+  const autocompleteRef = useRef(null);
+  const [response, setResponse] = useState(null);
+  const classes = useStyles();
+  const [waypoints, setwaypoints] = useState([]);
+  const [middlepoints, setmiddlepoints] = useState([]);
+  const [waypointsOnChange, setwaypointsOnChange] = useState(false);
+  const [segmentPath, setSegmentPath] = useState([]);
+  const [totalPathDistance, settotalPathDistance] = useState(0);
+  const [totalPathDuration, settotalPathDuration] = useState(0);
+
+  // Toggles
+  // ***************
+  // Toilet
+  const [allToilets, setAlltoilets] = useState([]);
+  const [toiletIcon, setToiletIcon] = useState(null);
+  const [toiletToggle, setToiletToggle] = useState(false);
+  // Food points
+  const [allFood, setAllfood] = useState([]);
+  const [foodIcon, setFoodIcon] = useState(null);
+  const [FoodToggle, setFoodToggle] = useState(false);
+  // Water points
+  const [allWater, setAllWater] = useState([]);
+  const [waterIcon, setWaterIcon] = useState(null);
+  const [WaterToggle, setWaterToggle] = useState(false);
+
+  // When waypoints are added or removed
+  useEffect(() => {
+    // console.log("Waypoints have changed: ", waypoints);
+    handleMiddlePoints();
+    setwaypointsOnChange(true);
+
+    console.log(
+      "Full Array of Waypoints: ",
+      waypoints.slice().map((waypoint) => {
+        return waypoint.location;
+      })
+    );
+  }, [waypoints]);
+
+  // When travelMode changed from running to cycling, vice-versa
+  useEffect(() => {
+    setwaypointsOnChange(true);
+  }, [travelMode]);
+
+  useEffect(() => {
+    setSelectedPlace(null);
+    setSearchLngLat(null);
+    setCurrentLocation(null);
+  }, [clickedLocation]);
+
+  // laod script for google map
+  const { isLoaded } = useLoadScript({
+    // googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY, // Load your own API key
+    googleMapsApiKey: REACT_APP_GOOGLE_MAPS_API_KEY, // Load your own API key
+    libraries: ["places"],
+  });
+
+  if (!isLoaded) return &lt;div>Loading....&lt;/div>;
+
+  // static lat and lng
+  const center = { lat: 1.2838566998730194, lng: 103.83347494758458 };
+
+  // Swap Waypoint Handler
+
+  // Markers
+  // ************************
+
+  // *** Toilet ***
+
+  // Load the toilets
+  if (allToilets.length &lt; 1 &amp;&amp; toiletToggle) {
+    getToilets().then((array) => {
+      setAlltoilets(array);
+    });
+  }
+  // Obtain ToiletLink
+  if (toiletIcon == null &amp;&amp; toiletToggle) {
+    toiletLink().then((string) => {
+      // console.log("Toilet Icon link: ", string);
+      setToiletIcon(string);
+    });
+  }
+
+  // *** Water Points ***
+  // Get all water points from database
+  async function getWaterPoint() {
+    var waterpoints = await getAllWaterpoints();
+    //   console.log(toilets);
+    return waterpoints;
+  }
+
+  // Load the water points
+  if (allWater.length &lt; 1 &amp;&amp; FoodToggle) {
+    getWaterPoint().then((array) => {
+      setAllWater(array);
+    });
+  }
+  // Obtain water point link
+  if (waterIcon == null &amp;&amp; FoodToggle) {
+    waterpointLink().then((string) => {
+      // console.log("Toilet Icon link: ", string);
+      setWaterIcon(string);
+    });
+  }
+
+  // *** Food points ***
+  // Get all toilets from database
+  async function getFoodPoints() {
+    var foodpoints = await getAllFoodPoints();
+    //   console.log(toilets);
+    return foodpoints;
+  }
+
+  // Load the toilets
+  if (allFood.length &lt; 1 &amp;&amp; FoodToggle) {
+    getFoodPoints().then((array) => {
+      setAllfood(array);
+    });
+  }
+  // Obtain ToiletLink
+  if (foodIcon == null &amp;&amp; FoodToggle) {
+    restaurantLink().then((string) => {
+      // console.log("Toilet Icon link: ", string);
+      setFoodIcon(string);
+    });
+  }
+
+  return (
+    &lt;div
+      style={{
+        // display: "flex",
+        // flexDirection: "row",
+        // justifyContent: "center",
+        // alignItems: "center",
+        // gap: "20px",
+        // flexGrow: 1,
+        // width: "100%",
+        padding: "1%",
+      }}
+      className={classNames(classes.main)}
+    >
+      {/* search component  */}
+      &lt;GridContainer>
+        &lt;GridItem xs={4}>
+          &lt;CustomTabs
+            headerColor="info"
+            tabs={[
+              {
+                tabName: "Route",
+                tabIcon: AddLocationIcon,
+                tabContent: (
+                  &lt;span>
+                    &lt;div>
+                      &lt;Autocomplete
+                        onLoad={(autocomplete) => {
+                          console.log("Autocomplete loaded:", autocomplete);
+                          autocompleteRef.current = autocomplete;
+                        }}
+                        onPlaceChanged={handlePlaceChanged}
+                        options={{
+                          fields: ["address_components", "geometry", "name"],
+                        }}
+                      >
+                        &lt;CustomInput
+                          labelText="Search for an exact location"
+                          id="material"
+                          formControlProps={{
+                            fullWidth: true,
+                          }}
+                          inputProps={{
+                            endAdornment: (
+                              &lt;InputAdornment position="end">
+                                &lt;SearchIcon />
+                              &lt;/InputAdornment>
+                            ),
+                          }}
+                        />
+                      &lt;/Autocomplete>
+                      &lt;GridContainer>
+                        &lt;GridItem xs={5}>
+                          &lt;Button
+                            color="info"
+                            onClick={() => {
+                              if (selectedPlace != null) {
+                                setwaypoints((waypoints) => [
+                                  ...waypoints,
+                                  {
+                                    location: {
+                                      lat: selectedPlace.geometry.location.lat(),
+                                      lng: selectedPlace.geometry.location.lng(),
+                                    },
+                                    name: selectedPlace.name,
+                                  },
+                                ]);
+                              } else if (currentLocation != null) {
+                                setwaypoints((waypoints) => [
+                                  ...waypoints,
+                                  {
+                                    location: currentLocation, // Already in float
+                                    name: "Current Location",
+                                  },
+                                ]);
+                              } else if (clickedLocation != null) {
+                                setwaypoints((waypoints) => [
+                                  ...waypoints,
+                                  {
+                                    location: {
+                                      lat: clickedLocation.location.lat(),
+                                      lng: clickedLocation.location.lng(),
+                                    },
+                                    name:
+                                      clickedLocation.name ||
+                                      "Unknown Location",
+                                  },
+                                ]);
+                              }
+                            }}
+                          >
+                            Add waypoint
+                          &lt;/Button>
+                        &lt;/GridItem>
+                        &lt;GridItem xs={5}>
+                          &lt;TravelModeSelection
+                            travelMode={travelMode}
+                            setTravelMode={setTravelMode}
+                          />
+                        &lt;/GridItem>
+                        &lt;GridItem xs={2}>
+                          &lt;IconButton onClick={handleGetLocationClick}>
+                            &lt;MyLocationIcon />
+                          &lt;/IconButton>
+                        &lt;/GridItem>
+                      &lt;/GridContainer>
+                      {totalPathDistance > 0 &amp;&amp; (
+                        &lt;div>
+                          {/* &lt;Success> */}
+                          Total Distance: {Math.floor(totalPathDistance / 1000)}
+                          km | Total Duration:{" "}
+                          {new Date(totalPathDuration * 1000)
+                            .toISOString()
+                            .substring(11, 16)}
+                          {/* &lt;/Success> */}
+                        &lt;/div>
+                      )}
+                    &lt;/div>
+                    &lt;div>
+                      &lt;Badge color="warning">
+                        Selected Location: {selectedPlace &amp;&amp; selectedPlace.name}{" "}
+                        {currentLocation &amp;&amp; "Current Location"}
+                        {clickedLocation &amp;&amp;
+                          `${clickedLocation.name || "Unknown Location"}`}
+                      &lt;/Badge>
+                    &lt;/div>
+                  &lt;/span>
+                ),
+              },
+              {
+                tabName: "Saved Routes",
+                tabIcon: BookmarkIcon,
+                tabContent: (
+                  &lt;p>
+                    &lt;SavedRoutesTab
+                      waypoints={waypoints}
+                      setwaypoints={setwaypoints}
+                      routeResponse={response}
+                      userID={userID}
+                      totalPathDistance={totalPathDistance}
+                      totalPathDuration={totalPathDuration}
+                    />
+                  &lt;/p>
+                ),
+              },
+              {
+                tabName: "Settings",
+                tabIcon: SettingsIcon,
+                tabContent: (
+                  &lt;div>
+                    &lt;ToggleMap
+                      state={toiletToggle}
+                      setState={setToiletToggle}
+                      toggleName={"Toilets"}
+                    />
+                    &lt;ToggleMap
+                      state={FoodToggle}
+                      setState={setFoodToggle}
+                      toggleName={"Food Points"}
+                    />
+                    &lt;ToggleMap
+                      state={WaterToggle}
+                      setState={setWaterToggle}
+                      toggleName={"Water Points"}
+                    />
+                  &lt;/div>
+                ),
+              },
+            ]}
+          />
+
+          &lt;Element
+            name="test7"
+            className="element"
+            id="containerElement"
+            style={{
+              position: "relative",
+              height: "300px",
+              overflow: "scroll",
+              // marginBottom: "100px",
+            }}
+          >
+            {waypoints.length > 0 &amp;&amp;
+              waypoints.map((waypoint, index) => {
+                // console.log("Waypoint: ", waypoint);
+                return (
+                  &lt;WaypointCard
+                    name={waypoint.name}
+                    distance={
+                      index &lt;= segmentPath.length &amp;&amp; index > 0
+                        ? segmentPath[index - 1].distance
+                        : null
+                    }
+                    duration={
+                      index &lt;= segmentPath.length &amp;&amp; index > 0
+                        ? segmentPath[index - 1].duration
+                        : null
+                    }
+                    index={index}
+                    deleteHandler={deleteWaypointHandler}
+                    length={waypoints.length}
+                    swapHandler={swapWappointHandler}
+                  />
+                );
+              })}
+          &lt;/Element>
+        &lt;/GridItem>
+
+        {/* map component  */}
+        &lt;GridItem xs={8}>
+          &lt;GoogleMap
+            zoom={currentLocation || selectedPlace ? 18 : 12}
+            center={currentLocation || searchLngLat || center}
+            mapContainerClassName="map"
+            mapContainerStyle={{
+              // width: "60%",
+              height: "600px",
+              // margin: "auto",
+            }}
+            onClick={(e) => {
+              extractClickedLocation(e);
+            }}
+            // onLoad={onMapLoad}
+          >
+            {selectedPlace &amp;&amp; &lt;Marker position={searchLngLat} />}
+            {clickedLocation &amp;&amp; clickedLocation.name == null &amp;&amp; (
+              &lt;Marker
+                position={clickedLocation.location}
+                title={`Lat: ${clickedLocation.location.lat()}, Lng: ${clickedLocation.location.lng()}`}
+              />
+            )}
+            {currentLocation &amp;&amp; (
+              &lt;Marker
+                position={currentLocation}
+                title={"I'm here!"}
+                label={"Label!"}
+                icon={"public/map-icons/toilet_icon.png"}
+              />
+            )}
+            {toiletToggle &amp;&amp; (
+              &lt;POIMarkers
+                setClickLocation={setClickLocation}
+                allPOI={allToilets}
+                image={toiletIcon}
+                poiname={"Toilet"}
+              />
+            )}
+            {WaterToggle &amp;&amp; (
+              &lt;POIMarkers
+                setClickLocation={setClickLocation}
+                allPOI={allWater}
+                image={waterIcon}
+                poiname={"Water point"}
+              />
+            )}
+            {FoodToggle &amp;&amp; (
+              &lt;POIMarkers
+                setClickLocation={setClickLocation}
+                allPOI={allFood}
+                image={foodIcon}
+                poiname={"Food point"}
+              />
+            )}
+            {waypoints.length > 1 &amp;&amp; waypointsOnChange &amp;&amp; (
+              &lt;div>
+                &lt;DirectionsService
+                  options={{
+                    destination: waypoints[waypoints.length - 1].location,
+                    origin: waypoints[0].location,
+                    travelMode: travelMode.mode,
+                    waypoints: middlepoints,
+                  }}
+                  callback={directionsCallback}
+                  onLoad={(directionsService) => {
+                    console.log(
+                      "DirectionsService onLoad directionsService: ",
+                      directionsService
+                    );
+                    setwaypointsOnChange(false);
+                  }}
+                  onUnmount={(directionsService) => {
+                    console.log(
+                      "DirectionsService onUnmount directionsService: ",
+                      directionsService
+                    );
+                  }}
+                />
+
+                &lt;DistanceMatrixService
+                  options={{
+                    origins: waypoints.slice(0, -1).map((waypoint) => {
+                      console.log("Origin: ", waypoint.location);
+                      return waypoint.location;
+                    }),
+                    destinations: waypoints
+                      .slice(1 - waypoints.length)
+                      .map((waypoint) => {
+                        console.log("Destination: ", waypoint.location);
+                        return waypoint.location;
+                      }),
+                    travelMode: travelMode.mode,
+                  }}
+                  callback={directionMatrixCallback}
+                />
+              &lt;/div>
+            )}
+            {response &amp;&amp; waypoints.length > 1 &amp;&amp; (
+              &lt;DirectionsRenderer
+                options={{
+                  directions: response,
+                  // draggable: true,
+                }}
+                onLoad={(directionsRenderer) => {
+                  console.log(
+                    "DirectionsRenderer onLoad directionsRenderer: ",
+                    directionsRenderer
+                  );
+                }}
+                // optional
+                onUnmount={(directionsRenderer) => {
+                  console.log(
+                    "DirectionsRenderer onUnmount directionsRenderer: ",
+                    directionsRenderer
+                  );
+                }}
+              />
+            )}
+          &lt;/GoogleMap>
+        &lt;/GridItem>
+      &lt;/GridContainer>
+    &lt;/div>
+  );
+}
+
+/**
+ * The `handleMiddlePoints` function sets up middle points based on the input waypoints array and
+ * logs the resulting middle points.
+ */
+export const handleMiddlePoints = () => {
+  setmiddlepoints((middlepoints) => []);
+  waypoints.forEach((value, index) => {
+    if (index > 0 &amp;&amp; index &lt; waypoints.length - 1) {
+      setmiddlepoints((middlepoints) => [
+        ...middlepoints,
+        {
+          location: value.location,
+          stopover: true,
+        },
+      ]);
+    }
+  });
+  // console.log(waypoints);
+  console.log("MiddlePoints: ", middlepoints);
+};
+
+/**
+ * The function `handlePlaceChanged` retrieves and sets the selected place's details, including its
+ * geometry, and updates the search latitude and longitude accordingly.
+ */
+export const handlePlaceChanged = () => {
+  const place = autocompleteRef.current.getPlace();
+  // console.log(place);
+  // console.log(place.hasOwnProperty("geometry"));
+  setSelectedPlace(place);
+  if (place != undefined &amp;&amp; place.hasOwnProperty("geometry")) {
+    setSearchLngLat({
+      lat: place.geometry.location.lat(),
+      lng: place.geometry.location.lng(),
+    });
+  }
+  setCurrentLocation(null);
+  setClickLocation(null);
+};
+
+/**
+ * The `handleGetLocationClick` function uses the Geolocation API to get the current position of the
+ * user and update the current location accordingly.
+ */
+export const handleGetLocationClick = () => {
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setSelectedPlace(null);
+        setSearchLngLat(null);
+        setClickLocation(null);
+        setCurrentLocation({ lat: latitude, lng: longitude });
+      },
+      (error) => {
+        console.log(error);
+      }
+    );
+  } else {
+    console.log("Geolocation is not supported by this browser.");
+  }
+};
+
+/**
+ * The `directionsCallback` function checks the response status and logs the response accordingly.
+ * @param response - The `response` parameter in the `directionsCallback` function is typically the
+ * response object returned by a DirectionsService request in a web mapping application. This
+ * response object contains information such as the status of the request and the directions data.
+ */
+export const directionsCallback = (response) => {
+  if (response !== null) {
+    if (response.status === "OK") {
+      setResponse(response);
+      console.log("DirectionsService Response: ", response);
+    } else {
+      console.log("response: ", response);
+    }
+  }
+};
+/**
+ * The function `getPlaceDisplayName` makes an HTTP GET request to retrieve the display name of a
+ * place using the Google Places API. Get displayname from fetch()
+ * @param placeId - The `placeId` parameter is a unique identifier for a specific place in the Google
+ * Places API. It is used to retrieve information about that particular place, such as its display
+ * name.
+ */
+export const getPlaceDisplayName = (placeId) =>
+  httpGet(
+    `https://places.googleapis.com/v1/places/${placeId}?fields=id,displayName&amp;key=${REACT_APP_GOOGLE_MAPS_API_KEY}`
+  ).then((place) => {
+    return place.displayName.text;
+  });
+
+/**
+ * The function `extractClickedLocation` extracts the clicked location's latitude and longitude,
+ * retrieves the place name if available, and sets the click location with the name and location
+ * data.
+ * @param response - The `response` parameter in the `extractClickedLocation` function seems to
+ * contain information related to a location, such as latitude and longitude (`latLng`) and possibly
+ * a `placeId`. The function extracts the location and name of the clicked place from the response
+ * object and sets them in the state variables
+ */
+export const extractClickedLocation = async (response) => {
+  var location = response.latLng;
+  if (response.hasOwnProperty("placeId")) {
+    var name = await getPlaceDisplayName(response.placeId);
+  } else {
+    var name = null;
+  }
+
+  setSelectedPlace(null);
+  setSearchLngLat(null);
+  setCurrentLocation(null);
+  setClickLocation({ name: name, location: location });
+  console.log(clickedLocation);
+};
+
+/**
+ * The function `directionMatrixCallback` processes a response from a directions API to extract
+ * segment information, total distance, and total duration of a path.
+ * @param response - The `response` parameter in the `directionMatrixCallback` function likely
+ * contains information about the directions matrix API response. This could include details such as
+ * origin addresses, destination addresses, distance, and duration between different points. The
+ * response is structured in a way that allows you to access this information for further processing
+ * @param status - The `status` parameter in the `directionMatrixCallback` function is used to
+ * indicate the status of the response received from the directions matrix API. In this case, the
+ * function checks if the status is equal to "OK" before processing the response data. If the status
+ * is "OK", it means
+ */
+export const directionMatrixCallback = (response, status) => {
+  if (status == "OK") {
+    var segmentInfo = [];
+    var origins = response.originAddresses;
+    var destinations = response.destinationAddresses;
+    var totalDistance = 0;
+    var totalDuration = 0;
+
+    for (var i = 0; i &lt; origins.length; i++) {
+      var results = response.rows[i].elements;
+      var element = results[i];
+      var distance = element.distance.text;
+      var duration = element.duration.text;
+      segmentInfo = [
+        ...segmentInfo,
+        { distance: distance, duration: duration },
+      ];
+      totalDistance += element.distance.value;
+      totalDuration += element.duration.value;
+    }
+    // console.log("segmentInfo", segmentInfo);
+    setSegmentPath(segmentInfo);
+    settotalPathDistance(totalDistance);
+    settotalPathDuration(totalDuration);
+  }
+};
+
+/**
+ * The `deleteWaypointHandler` function removes a specific waypoint from an array of waypoints in
+ * JavaScript.
+ * @param index - The `index` parameter in the `deleteWaypointHandler` function represents the index
+ * of the waypoint that needs to be deleted from the `waypoints` array.
+ */
+export const deleteWaypointHandler = (index) => {
+  // console.log("Before: ", waypoints);
+  if (index > 0) {
+    waypoints.splice(index, index);
+  } else {
+    waypoints.shift();
+  }
+  setwaypoints((waypoints) => [...waypoints]);
+  // console.log("After: ", waypoints);
+};
+
+/**
+ * The `swapWaypointHandler` function swaps a waypoint with either the previous or next waypoint
+ * based on the specified direction.
+ * @param index - The `index` parameter in the `swapWaypointHandler` function represents the position
+ * of the waypoint that you want to swap with its adjacent waypoint. It is used to identify the
+ * specific waypoint in the array of waypoints that you want to move either up or down.
+ * @param direction - The `direction` parameter in the `swapWaypointHandler` function determines
+ * whether to move the waypoint up or down in the list. Where 0 = go up, 1 = go down.
+ */
+export const swapWappointHandler = (index, direction) => {
+  // direction = 0 -> go up
+  // direction = 1 -> go down
+  var tempWaypoints = waypoints;
+  if (direction == 0) {
+    var previousPoint = tempWaypoints[index - 1];
+    tempWaypoints[index - 1] = tempWaypoints[index];
+    tempWaypoints[index] = previousPoint;
+  } else {
+    var nextPoint = tempWaypoints[index + 1];
+    tempWaypoints[index + 1] = tempWaypoints[index];
+    tempWaypoints[index] = nextPoint;
+  }
+  setwaypoints((waypoints) => [...tempWaypoints]);
+};
+
+/**
+ * The function `getToilets` asynchronously retrieves all toilets and returns them.
+ * @returns The `getToilets` function is returning the result of the `getAllToilets` function after
+ * awaiting its completion.
+ */
+export async function getToilets() {
+  var toilets = await getAllToilets();
+  //   console.log(toilets);
+  return toilets;
+}
+/**
+ * The function `getWaterPoint` asynchronously retrieves all water points and returns them.
+ * @returns The `getWaterPoint` function is returning the result of the `getAllWaterpoints` function after
+ * awaiting its completion.
+ */
+export async function getWaterPoint() {
+  var waterpoints = await getAllWaterpoints();
+  //   console.log(toilets);
+  return waterpoints;
+}
+
+/**
+ * The function `getFoodPoints` asynchronously retrieves all food points and returns them.
+ * @returns The `getFoodPoints` function is returning the result of the `getAllFoodPoints` function after
+ * awaiting its completion.
+ */
+export async function getFoodPoints() {
+  var foodpoints = await getAllFoodPoints();
+  //   console.log(toilets);
+  return foodpoints;
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html"></a></li><li><a href="global.html#AccountInfo">AccountInfo</a></li><li><a href="global.html#BMI">BMI</a></li><li><a href="global.html#CameraContent">CameraContent</a></li><li><a href="global.html#CameraInput">CameraInput</a></li><li><a href="global.html#CreateAccountPage">CreateAccountPage</a></li><li><a href="global.html#DisplayMapPage">DisplayMapPage</a></li><li><a href="global.html#ErrorPage">ErrorPage</a></li><li><a href="global.html#FeedbackMap">FeedbackMap</a></li><li><a href="global.html#FoodHealthPage">FoodHealthPage</a></li><li><a href="global.html#FoodInfo">FoodInfo</a></li><li><a href="global.html#FoodSug">FoodSug</a></li><li><a href="global.html#FoodSugCard">FoodSugCard</a></li><li><a href="global.html#GPXdownload">GPXdownload</a></li><li><a href="global.html#LandingPage">LandingPage</a></li><li><a href="global.html#LocalStorageInput">LocalStorageInput</a></li><li><a href="global.html#LoginPage">LoginPage</a></li><li><a href="global.html#MainMenuPage">MainMenuPage</a></li><li><a href="global.html#ManageSuggestionsPage">ManageSuggestionsPage</a></li><li><a href="global.html#ManualContentPill">ManualContentPill</a></li><li><a href="global.html#Map">Map</a></li><li><a href="global.html#NewFeedbackPage">NewFeedbackPage</a></li><li><a href="global.html#POIMarkers">POIMarkers</a></li><li><a href="global.html#PasswordRecoveryPage">PasswordRecoveryPage</a></li><li><a href="global.html#ProductSection">ProductSection</a></li><li><a href="global.html#ProfilePage">ProfilePage</a></li><li><a href="global.html#RouteCard">RouteCard</a></li><li><a href="global.html#RoutePlannerPage">RoutePlannerPage</a></li><li><a href="global.html#SavedRoutesTab">SavedRoutesTab</a></li><li><a href="global.html#ToggleMap">ToggleMap</a></li><li><a href="global.html#ToiletSug">ToiletSug</a></li><li><a href="global.html#ToiletSugCard">ToiletSugCard</a></li><li><a href="global.html#TravelModeSelection">TravelModeSelection</a></li><li><a href="global.html#UserInfo">UserInfo</a></li><li><a href="global.html#VerificationPage">VerificationPage</a></li><li><a href="global.html#WaterSugCard">WaterSugCard</a></li><li><a href="global.html#WaypointCard">WaypointCard</a></li><li><a href="global.html#acceptPOI">acceptPOI</a></li><li><a href="global.html#addNewPOI">addNewPOI</a></li><li><a href="global.html#browseLocalStorage">browseLocalStorage</a></li><li><a href="global.html#cachedFoods">cachedFoods</a></li><li><a href="global.html#calculateBMI">calculateBMI</a></li><li><a href="global.html#classes">classes</a></li><li><a href="global.html#database">database</a></li><li><a href="global.html#debouncedSearchFunction">debouncedSearchFunction</a></li><li><a href="global.html#deleteSavedRoutes">deleteSavedRoutes</a></li><li><a href="global.html#deleteUserRouteHandler">deleteUserRouteHandler</a></li><li><a href="global.html#deleteWaypointHandler">deleteWaypointHandler</a></li><li><a href="global.html#directionMatrixCallback">directionMatrixCallback</a></li><li><a href="global.html#directionsCallback">directionsCallback</a></li><li><a href="global.html#extractClickedLocation">extractClickedLocation</a></li><li><a href="global.html#fetchFoodInfo">fetchFoodInfo</a></li><li><a href="global.html#fetchFoods">fetchFoods</a></li><li><a href="global.html#fetchPoints">fetchPoints</a></li><li><a href="global.html#generateCode">generateCode</a></li><li><a href="global.html#getAdvice">getAdvice</a></li><li><a href="global.html#getAllFoodPoints">getAllFoodPoints</a></li><li><a href="global.html#getAllToilets">getAllToilets</a></li><li><a href="global.html#getAllWaterpoints">getAllWaterpoints</a></li><li><a href="global.html#getFoodPoints">getFoodPoints</a></li><li><a href="global.html#getHealthStatus">getHealthStatus</a></li><li><a href="global.html#getPlaceDisplayName">getPlaceDisplayName</a></li><li><a href="global.html#getSavedRoutes">getSavedRoutes</a></li><li><a href="global.html#getSavedRoutesWithKeys">getSavedRoutesWithKeys</a></li><li><a href="global.html#getToilets">getToilets</a></li><li><a href="global.html#getUserRoutes">getUserRoutes</a></li><li><a href="global.html#getUserRoutesKeys">getUserRoutesKeys</a></li><li><a href="global.html#getWaterPoint">getWaterPoint</a></li><li><a href="global.html#handleApprove">handleApprove</a></li><li><a href="global.html#handleBackButtonClick">handleBackButtonClick</a></li><li><a href="global.html#handleBrowseClick">handleBrowseClick</a></li><li><a href="global.html#handleCancel">handleCancel</a></li><li><a href="global.html#handleCodeChanges">handleCodeChanges</a></li><li><a href="global.html#handleConfirmPasswordChange">handleConfirmPasswordChange</a></li><li><a href="global.html#handleDiscardClick">handleDiscardClick</a></li><li><a href="global.html#handleEdit">handleEdit</a></li><li><a href="global.html#handleEmailChange">handleEmailChange</a></li><li><a href="global.html#handleFacebookLogin">handleFacebookLogin</a></li><li><a href="global.html#handleFoodSearch">handleFoodSearch</a></li><li><a href="global.html#handleGetLocationClick">handleGetLocationClick</a></li><li><a href="global.html#handleGithubLogin">handleGithubLogin</a></li><li><a href="global.html#handleGoogleLogin">handleGoogleLogin</a></li><li><a href="global.html#handleMiddlePoints">handleMiddlePoints</a></li><li><a href="global.html#handleNewPasswordChange">handleNewPasswordChange</a></li><li><a href="global.html#handlePasswordChange">handlePasswordChange</a></li><li><a href="global.html#handlePlaceChanged">handlePlaceChanged</a></li><li><a href="global.html#handleProfilePicChange">handleProfilePicChange</a></li><li><a href="global.html#handleReconfirmPasswordChange">handleReconfirmPasswordChange</a></li><li><a href="global.html#handleReject">handleReject</a></li><li><a href="global.html#handleRouteNameChange">handleRouteNameChange</a></li><li><a href="global.html#handleSubmit">handleSubmit</a></li><li><a href="global.html#handleToggleChange">handleToggleChange</a></li><li><a href="global.html#handleToggleForm">handleToggleForm</a></li><li><a href="global.html#handleUsernameChange">handleUsernameChange</a></li><li><a href="global.html#httpGet">httpGet</a></li><li><a href="global.html#rejectPOI">rejectPOI</a></li><li><a href="global.html#renderIcon">renderIcon</a></li><li><a href="global.html#restaurantLink">restaurantLink</a></li><li><a href="global.html#router">router</a></li><li><a href="global.html#swapWappointHandler">swapWappointHandler</a></li><li><a href="global.html#toiletLink">toiletLink</a></li><li><a href="global.html#uploadImageAndGetPrediction">uploadImageAndGetPrediction</a></li><li><a href="global.html#uploadSavedRoutes">uploadSavedRoutes</a></li><li><a href="global.html#validateCredentials">validateCredentials</a></li><li><a href="global.html#validatePassword">validatePassword</a></li><li><a href="global.html#waterpointLink">waterpointLink</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.2</a> on Tue Apr 16 2024 15:37:24 GMT+0800 (Singapore Standard Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

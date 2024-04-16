@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: pages-sections/Foodhealth-sections/CameraContent.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: pages-sections/Foodhealth-sections/CameraContent.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import classNames from "classnames";
+import { makeStyles } from "@material-ui/core/styles";
+import React, { useEffect, useState, useMemo } from "react";
+import { getDatabase, ref, get } from "firebase/database";
+import Link from "next/link";
+
+import styles from "/styles/jss/nextjs-material-kit/pages/components.js";
+import CameraInput from "./CameraInput";
+import LocalStorageInput from "./LocalStorageInput";
+import Button from "/components/CustomButtons/Button.js";
+import Card from "/components/Card/Card.js";
+import CardMedia from "@material-ui/core/CardMedia";
+import CardBody from "/components/Card/CardBody.js";
+import CardFooter from "/components/Card/CardFooter.js";
+import GridContainer from "/components/Grid/GridContainer.js";
+import GridItem from "/components/Grid/GridItem.js";
+import FormControlLabel from "@material-ui/core/FormControlLabel";
+import Switch from "@material-ui/core/Switch";
+
+const useStyles = makeStyles(styles);
+
+/**
+ * The `CameraContent` function in JavaScript fetches food data based on image predictions and displays
+ * food information along with images.
+ * @returns The `CameraContent` function is being exported as the default export. It returns JSX
+ * elements that conditionally render different sections based on the state of the component.
+ */
+export function CameraContent() {
+  const classes = useStyles();
+  const [checkedStates, setCheckedStates] = useState([]);
+  const [image, setImage] = React.useState(null);
+  const [predictions, setPredictions] = React.useState(null);
+  const [foods, setFoods] = useState([]);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  const database = getDatabase();
+
+  useEffect(() => {
+    const fetchFoods = async () => {
+      if (debouncedSearch.trim() === "") {
+        setFoods([]);
+        return;
+      }
+
+      const foodRef = ref(database, "food/");
+      try {
+        const snapshot = await get(foodRef);
+        if (snapshot.exists()) {
+          const foodArray = Object.entries(snapshot.val()).map(
+            ([idd, data]) => ({
+              idd,
+              ...data,
+            })
+          );
+          const filteredFoods = foodArray.filter((food) =>
+            food.idd.toLowerCase().includes(debouncedSearch.toLowerCase())
+          );
+          setFoods(filteredFoods);
+          setCheckedStates(Array(foodArray.length).fill(false));
+        } else {
+          console.log("No data available");
+        }
+      } catch (error) {
+        console.error("Error retrieving data:", error);
+      }
+    };
+
+    fetchFoods();
+  }, [debouncedSearch]);
+
+  const cachedFoods = useMemo(() => foods, [foods]);
+
+  return (
+    &lt;>
+      {!image &amp;&amp; (
+        &lt;div style={{ display: "flex", justifyContent: "center", gap: "10px" }}>
+          &lt;CameraInput onImageCapture={setImage} />{" "}
+          &lt;LocalStorageInput onImageSelect={setImage} />
+        &lt;/div>
+      )}
+      {image &amp;&amp; (
+        &lt;div>
+          &lt;div
+            style={{ display: "flex", justifyContent: "center", gap: "25px" }}
+          >
+            &lt;img
+              src={image}
+              alt="Selected Image"
+              style={{
+                maxWidth: "1000px",
+                maxHeight: "1000px",
+                width: "auto",
+                height: "auto",
+                objectFit: "contain",
+              }}
+            />
+          &lt;/div>
+          &lt;div
+            style={{ display: "flex", justifyContent: "center", gap: "25px" }}
+          >
+            &lt;Button color="info" onClick={uploadImageAndGetPrediction}>
+              Get Prediction
+            &lt;/Button>
+            &lt;Button color="danger" onClick={handleDiscardClick}>
+              Discard Picture
+            &lt;/Button>
+          &lt;/div>
+        &lt;/div>
+      )}
+      {foods.length > 0 &amp;&amp; (
+        &lt;GridContainer justify="left" spacing={4}>
+          {cachedFoods.map((food, index) => (
+            &lt;GridItem xs={12} sm={6} md={4} lg={4} key={food.idd}>
+              &lt;Card style={{ backgroundColor: "#fff9c4" }}>
+                &lt;CardMedia
+                  align="left"
+                  component="img"
+                  alt="Image cannot be loaded"
+                  width="100"
+                  height="200"
+                  image={
+                    food.category !== "Others"
+                      ? `/img/foods/${food.category.toLowerCase()}.jpg`
+                      : "/img/fudpic.jpg"
+                  }
+                  title="Picture of a food"
+                />
+                &lt;CardBody>
+                  &lt;h4 className={food.idd} style={{ fontWeight: "bold" }}>
+                    {food.idd}
+                  &lt;/h4>
+                  &lt;p>
+                    Calories:{" "}
+                    {checkedStates[index] ? food.scalories : food.calories}
+                  &lt;/p>
+                  &lt;p>Fats: {checkedStates[index] ? food.sfats : food.fats}&lt;/p>
+                  &lt;p>
+                    Carbs: {checkedStates[index] ? food.scarbs : food.carbs}
+                  &lt;/p>
+                  &lt;p>
+                    Protein:{" "}
+                    {checkedStates[index] ? food.sprotein : food.protein}
+                  &lt;/p>
+                &lt;/CardBody>
+                &lt;CardFooter>
+                  {/* More Info button linking to FoodInfo page */}
+                  &lt;Link href={`/foodinfo?id=${food.id}`}>
+                    &lt;a>More Info&lt;/a>
+                  &lt;/Link>
+                &lt;/CardFooter>
+              &lt;/Card>
+            &lt;/GridItem>
+          ))}
+        &lt;/GridContainer>
+      )}
+    &lt;/>
+  );
+}
+/**
+ * The function `handleDiscardClick` logs "Hello" to the console and resets the image and foods state
+ * variables.
+ * @returns If the `image` variable is falsy, the function will return early without executing the
+ * remaining code.
+ */
+export const handleDiscardClick = () => {
+  console.log("Hello");
+  if (!image) return;
+  setImage(null);
+  setFoods([]);
+};
+/**
+ * The function `fetchFoodInfo` asynchronously retrieves food information based on provided IDs,
+ * filters the data, and sets states accordingly.
+ * @param foodIds - Food IDs are unique identifiers for different food items in the database. The
+ * `fetchFoodInfo` function takes an array of foodIds as a parameter to retrieve information about
+ * those specific food items from the database.
+ */
+export const fetchFoodInfo = async (foodIds) => {
+  console.log("Requested food IDs:", foodIds);
+  const foodRef = ref(database, "food/");
+  try {
+    const snapshot = await get(foodRef);
+    if (snapshot.exists()) {
+      const foodArray = Object.entries(snapshot.val()).map(([idd, data]) => ({
+        idd,
+        ...data,
+      }));
+      console.log("Fetched food array:", foodArray);
+      const filteredFoods = foodArray.filter((food) =>
+        foodIds.includes(food.id)
+      );
+      console.log("Filtered foods:", filteredFoods);
+      setFoods(filteredFoods);
+      // Initialize checkedStates with false for each food item
+      setCheckedStates(filteredFoods.map(() => false));
+    } else {
+      console.log("No data available");
+    }
+  } catch (error) {
+    console.error("Error retrieving data:", error);
+  }
+};
+/**
+ * The function `uploadImageAndGetPrediction` fetches an image blob, sends it to a Flask API for
+ * prediction, processes the prediction result, and fetches additional food information based on the
+ * prediction.
+ */
+export const uploadImageAndGetPrediction = async () => {
+  try {
+    console.log("Fetching image blob...");
+    const imageBlob = await fetch(image).then((r) => r.blob());
+    const formData = new FormData();
+    formData.append("file", imageBlob, "image.jpg");
+
+    console.log("Sending image to Flask API...");
+    const FLASK_API_URL = "http://127.0.0.1:5000/predict";
+    const response = await fetch(FLASK_API_URL, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to upload image and get prediction");
+    }
+
+    const result = await response.json();
+    console.log("Prediction received:", result.prediction);
+    const foodIds = result.prediction;
+    setPredictions(foodIds);
+
+    console.log("Fetching food info...");
+    await fetchFoodInfo(foodIds);
+  } catch (error) {
+    console.error("Error:", error);
+  }
+};
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html"></a></li><li><a href="global.html#AccountInfo">AccountInfo</a></li><li><a href="global.html#BMI">BMI</a></li><li><a href="global.html#CameraContent">CameraContent</a></li><li><a href="global.html#CameraInput">CameraInput</a></li><li><a href="global.html#CreateAccountPage">CreateAccountPage</a></li><li><a href="global.html#DisplayMapPage">DisplayMapPage</a></li><li><a href="global.html#ErrorPage">ErrorPage</a></li><li><a href="global.html#FeedbackMap">FeedbackMap</a></li><li><a href="global.html#FoodHealthPage">FoodHealthPage</a></li><li><a href="global.html#FoodInfo">FoodInfo</a></li><li><a href="global.html#FoodSug">FoodSug</a></li><li><a href="global.html#FoodSugCard">FoodSugCard</a></li><li><a href="global.html#GPXdownload">GPXdownload</a></li><li><a href="global.html#LandingPage">LandingPage</a></li><li><a href="global.html#LocalStorageInput">LocalStorageInput</a></li><li><a href="global.html#LoginPage">LoginPage</a></li><li><a href="global.html#MainMenuPage">MainMenuPage</a></li><li><a href="global.html#ManageSuggestionsPage">ManageSuggestionsPage</a></li><li><a href="global.html#ManualContentPill">ManualContentPill</a></li><li><a href="global.html#Map">Map</a></li><li><a href="global.html#NewFeedbackPage">NewFeedbackPage</a></li><li><a href="global.html#POIMarkers">POIMarkers</a></li><li><a href="global.html#PasswordRecoveryPage">PasswordRecoveryPage</a></li><li><a href="global.html#ProductSection">ProductSection</a></li><li><a href="global.html#ProfilePage">ProfilePage</a></li><li><a href="global.html#RouteCard">RouteCard</a></li><li><a href="global.html#RoutePlannerPage">RoutePlannerPage</a></li><li><a href="global.html#SavedRoutesTab">SavedRoutesTab</a></li><li><a href="global.html#ToggleMap">ToggleMap</a></li><li><a href="global.html#ToiletSug">ToiletSug</a></li><li><a href="global.html#ToiletSugCard">ToiletSugCard</a></li><li><a href="global.html#TravelModeSelection">TravelModeSelection</a></li><li><a href="global.html#UserInfo">UserInfo</a></li><li><a href="global.html#VerificationPage">VerificationPage</a></li><li><a href="global.html#WaterSugCard">WaterSugCard</a></li><li><a href="global.html#WaypointCard">WaypointCard</a></li><li><a href="global.html#acceptPOI">acceptPOI</a></li><li><a href="global.html#addNewPOI">addNewPOI</a></li><li><a href="global.html#browseLocalStorage">browseLocalStorage</a></li><li><a href="global.html#cachedFoods">cachedFoods</a></li><li><a href="global.html#calculateBMI">calculateBMI</a></li><li><a href="global.html#classes">classes</a></li><li><a href="global.html#database">database</a></li><li><a href="global.html#debouncedSearchFunction">debouncedSearchFunction</a></li><li><a href="global.html#deleteSavedRoutes">deleteSavedRoutes</a></li><li><a href="global.html#deleteUserRouteHandler">deleteUserRouteHandler</a></li><li><a href="global.html#deleteWaypointHandler">deleteWaypointHandler</a></li><li><a href="global.html#directionMatrixCallback">directionMatrixCallback</a></li><li><a href="global.html#directionsCallback">directionsCallback</a></li><li><a href="global.html#extractClickedLocation">extractClickedLocation</a></li><li><a href="global.html#fetchFoodInfo">fetchFoodInfo</a></li><li><a href="global.html#fetchFoods">fetchFoods</a></li><li><a href="global.html#fetchPoints">fetchPoints</a></li><li><a href="global.html#generateCode">generateCode</a></li><li><a href="global.html#getAdvice">getAdvice</a></li><li><a href="global.html#getAllFoodPoints">getAllFoodPoints</a></li><li><a href="global.html#getAllToilets">getAllToilets</a></li><li><a href="global.html#getAllWaterpoints">getAllWaterpoints</a></li><li><a href="global.html#getFoodPoints">getFoodPoints</a></li><li><a href="global.html#getHealthStatus">getHealthStatus</a></li><li><a href="global.html#getPlaceDisplayName">getPlaceDisplayName</a></li><li><a href="global.html#getSavedRoutes">getSavedRoutes</a></li><li><a href="global.html#getSavedRoutesWithKeys">getSavedRoutesWithKeys</a></li><li><a href="global.html#getToilets">getToilets</a></li><li><a href="global.html#getUserRoutes">getUserRoutes</a></li><li><a href="global.html#getUserRoutesKeys">getUserRoutesKeys</a></li><li><a href="global.html#getWaterPoint">getWaterPoint</a></li><li><a href="global.html#handleApprove">handleApprove</a></li><li><a href="global.html#handleBackButtonClick">handleBackButtonClick</a></li><li><a href="global.html#handleBrowseClick">handleBrowseClick</a></li><li><a href="global.html#handleCancel">handleCancel</a></li><li><a href="global.html#handleCodeChanges">handleCodeChanges</a></li><li><a href="global.html#handleConfirmPasswordChange">handleConfirmPasswordChange</a></li><li><a href="global.html#handleDiscardClick">handleDiscardClick</a></li><li><a href="global.html#handleEdit">handleEdit</a></li><li><a href="global.html#handleEmailChange">handleEmailChange</a></li><li><a href="global.html#handleFacebookLogin">handleFacebookLogin</a></li><li><a href="global.html#handleFoodSearch">handleFoodSearch</a></li><li><a href="global.html#handleGetLocationClick">handleGetLocationClick</a></li><li><a href="global.html#handleGithubLogin">handleGithubLogin</a></li><li><a href="global.html#handleGoogleLogin">handleGoogleLogin</a></li><li><a href="global.html#handleMiddlePoints">handleMiddlePoints</a></li><li><a href="global.html#handleNewPasswordChange">handleNewPasswordChange</a></li><li><a href="global.html#handlePasswordChange">handlePasswordChange</a></li><li><a href="global.html#handlePlaceChanged">handlePlaceChanged</a></li><li><a href="global.html#handleProfilePicChange">handleProfilePicChange</a></li><li><a href="global.html#handleReconfirmPasswordChange">handleReconfirmPasswordChange</a></li><li><a href="global.html#handleReject">handleReject</a></li><li><a href="global.html#handleRouteNameChange">handleRouteNameChange</a></li><li><a href="global.html#handleSubmit">handleSubmit</a></li><li><a href="global.html#handleToggleChange">handleToggleChange</a></li><li><a href="global.html#handleToggleForm">handleToggleForm</a></li><li><a href="global.html#handleUsernameChange">handleUsernameChange</a></li><li><a href="global.html#httpGet">httpGet</a></li><li><a href="global.html#rejectPOI">rejectPOI</a></li><li><a href="global.html#renderIcon">renderIcon</a></li><li><a href="global.html#restaurantLink">restaurantLink</a></li><li><a href="global.html#router">router</a></li><li><a href="global.html#swapWappointHandler">swapWappointHandler</a></li><li><a href="global.html#toiletLink">toiletLink</a></li><li><a href="global.html#uploadImageAndGetPrediction">uploadImageAndGetPrediction</a></li><li><a href="global.html#uploadSavedRoutes">uploadSavedRoutes</a></li><li><a href="global.html#validateCredentials">validateCredentials</a></li><li><a href="global.html#validatePassword">validatePassword</a></li><li><a href="global.html#waterpointLink">waterpointLink</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.2</a> on Tue Apr 16 2024 15:37:24 GMT+0800 (Singapore Standard Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>
